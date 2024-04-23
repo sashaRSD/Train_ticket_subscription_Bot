@@ -4,14 +4,7 @@ import aioschedule, asyncio
 
 
 async def scheduler():
-    aioschedule.every().day.at('21:02').do(client.timer_fun)
-    aioschedule.every().day.at('12:00').do(client.timer_fun)
-    aioschedule.every().day.at('16:00').do(client.timer_fun)
-    aioschedule.every().day.at('20:00').do(client.timer_fun)
-    aioschedule.every().day.at('21:00').do(client.timer_fun)
-    aioschedule.every().day.at('22:00').do(client.timer_fun)
-    aioschedule.every().day.at('23:00').do(client.timer_fun)
-    aioschedule.every().day.at('23:30').do(client.timer_fun)
+    #aioschedule.every().minute.do(client.timer_fun)
     aioschedule.every().day.at('23:50').do(client.timer_fun)
     print('Timer run!')
     while True:
@@ -20,7 +13,6 @@ async def scheduler():
 
 
 async def on_startup():
-    print('ok2')
     preview_text = Figlet(font='slant')
     print(preview_text.renderText("TICKET SUB BOT"))
     asyncio.create_task(scheduler())
