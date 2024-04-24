@@ -8,7 +8,6 @@ id_admin = create_bot.id_admin
 dp = create_bot.dp
 bot = create_bot.bot
 
-
 @dp.message(Command('start'))
 async def commands_start(message: types.Message):
     try:
@@ -21,9 +20,15 @@ async def commands_start(message: types.Message):
 
 
 @dp.message(Command('get'))
-async def timer_fun(message: types.Message):
-    data = get.scraping_yandex()
-    await bot.send_message(message.from_user.id, data)
+async def get_fun(message: types.Message):
+    data = await get.scraping_yandex()
+    await bot.send_message(message.from_user.id, data[1], parse_mode="html")
+
+
+async def timer_fun():
+    data = await get.scraping_yandex()
+    if data[0]:
+        await bot.send_message(id_admin, data[1], parse_mode="html")
 
 
 @dp.message()
