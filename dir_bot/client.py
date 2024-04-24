@@ -22,8 +22,8 @@ async def commands_start(message: types.Message):
 
 @dp.message(Command('get'))
 async def timer_fun(message: types.Message):
-    # data = get.scraping()
-    await bot.send_message(id_admin, f'test')
+    data = get.scraping_yandex()
+    await bot.send_message(message.from_user.id, data)
 
 
 @dp.message()

@@ -13,9 +13,9 @@ async def scheduler():
 
 
 async def on_startup():
+    asyncio.create_task(scheduler())
     preview_text = Figlet(font='slant')
     print(preview_text.renderText("TICKET SUB BOT"))
-    asyncio.create_task(scheduler())
 
 
 async def main():
