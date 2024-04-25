@@ -5,6 +5,7 @@ from dir_get import get
 import asyncio
 
 id_admin = create_bot.id_admin
+id_admin2 = create_bot.id_admin2
 dp = create_bot.dp
 bot = create_bot.bot
 
@@ -22,13 +23,16 @@ async def commands_start(message: types.Message):
 @dp.message(Command('get'))
 async def get_fun(message: types.Message):
     data = await get.scraping_yandex()
-    await bot.send_message(message.from_user.id, data[1], parse_mode="html")
+    for i_data in data:
+        await bot.send_message(message.from_user.id, i_data[1], parse_mode="html")
 
 
 async def timer_fun():
     data = await get.scraping_yandex()
-    if data[0]:
-        await bot.send_message(id_admin, data[1], parse_mode="html")
+    for i_data in data:
+        if i_data[0]:
+            await bot.send_message(id_admin, i_data[1], parse_mode="html")
+            await bot.send_message(id_admin2, i_data[1], parse_mode="html")
 
 
 @dp.message()

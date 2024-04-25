@@ -5,7 +5,7 @@ import aioschedule, asyncio
 
 
 async def scheduler():
-    aioschedule.every().minute.do(client.timer_fun)
+    aioschedule.every(5).minutes.do(client.timer_fun)
     aioschedule.every().day.at('00:00').do(base_train.sql_delete_old)
     print('Timer run!')
     while True:

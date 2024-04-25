@@ -1,7 +1,10 @@
-from dir_get.params_yandex import params_yandex, cookies_yandex, headers_yandex
+from dir_get.params_yandex_Voronezh_Adler1 import data_Voronezh_Adler1
+from dir_get.params_yandex_Moscow_Voronezh28 import data_Moscow_Voronezh28
+from dir_get.params_yandex_Moscow_StOskol28 import data_Moscow_StOskol28
+from dir_get.params_yandex_SPB_Moscow27 import data_SPB_Moscow27
 from datetime import datetime, timedelta
 from dir_base import base_train
-import requests, json
+import requests, json, asyncio
 
 
 # html.parser- встроенный - никаких дополнительных зависимостей не требуется
@@ -12,7 +15,75 @@ import requests, json
 #               'Gecko/20100101 Firefox/50.0')
 # headers={'User-Agent': user_agent}
 
-def datetime_start(hour):
+
+#function---------------------------
+async def scraping_yandex():
+    response = {}
+    try:
+        all_travel = []
+        for city in [data_Voronezh_Adler1, data_Moscow_Voronezh28, data_Moscow_StOskol28, data_SPB_Moscow27]:
+            settings_train = city[0]
+            cookies_ya = city[1]
+            header_ya = city[2]
+            params_ya = city[3]
+            response = requests.get('https://travel.yandex.ru/api/trains/genericSearch', cookies=cookies_ya,
+                                    params=params_ya, headers=header_ya).json()
+            all_trains = response.get('variants')
+            # with open("dir_get/data_file_yandex.json", "w", encoding='utf-8') as write_file:
+            #     json.dump(all_trains, write_file, indent=4, ensure_ascii=False)
+            train_info = []
+            new_ticket = False
+            for train_id in all_trains:
+                train = train_id['forward'][0]
+
+                train_number = train['train']['number']
+                time_departure = datetime.strptime(train['departure'], "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=3)
+                time_arrival = (datetime.strptime(train['arrival'], "%Y-%m-%dT%H:%M:%SZ")
+                                + timedelta(hours=3)).strftime("%H:%M:%S %d.%m.%Y")
+
+                if (time_departure > datetime_start(settings_train[0], params_ya) and
+                        find_need_train_place(train['tariffs']['classes'], settings_train[1], settings_train[2])):
+                    train_company = train['company']['title']
+                    if not (await base_train.sql_read_train(train_number)):
+                        await base_train.sql_add_train(train_number, time_departure)
+
+                    duration = train['duration'] / 60
+                    duration_min = int(duration % 60)
+                    duration_hour = int(duration // 60)
+
+                    station_from = train['stationFrom']['title']
+                    station_to = train['stationTo']['title']
+                    seat_info = all_train_place_now(train['tariffs']['classes'])
+                    seat_text = seat_info[0]
+
+                    all_seats = seat_info[1]
+                    result_find = find_new_train_place(all_seats, await base_train.sql_read_train(train_number))
+                    new_ticket = result_find[0]
+                    new_ticket_text = result_find[1]
+                    await base_train.sql_update_train(train_number, all_seats)
+
+                    train_info.append({"new_ticket_text": f'{new_ticket_text}',
+                                       "date": f'<b>🕗 {time_departure.strftime("%H:%M:%S %d.%m.%Y")}</b> \n',
+                                       "text": f'🚅 Поезд №{train_number} {train_company} \n'
+                                               f'{station_from} -> {station_to} ({duration_hour}ч {duration_min} мин) \n'
+                                               f'{time_arrival}\n'
+                                               f'<b>{seat_text}</b>\n'})
+                elif (await base_train.sql_read_train(train_number) and
+                      await base_train.sql_read_time_train(train_number) == time_departure):
+                    await base_train.sql_delete_train(train_number)
+
+            all_travel.append([new_ticket, await sort_train_time(train_info, header_ya)])
+            await asyncio.sleep(3)
+        return all_travel
+    except requests.exceptions.ConnectionError:
+        print('[!] Please check your connection!')
+        return [[False, '[!] Please check your connection!']]
+    except TypeError:
+        print('[!] Please check captcha!')
+        return [[False, f'[!] Please check captcha!\n{response.get("captcha").get("captcha-page")}']]
+
+
+def datetime_start(hour, params_yandex):
     datetime0 = datetime.strptime(params_yandex['when'], "%Y-%m-%d") + timedelta(hours=hour)
     return datetime0
 
@@ -82,8 +153,8 @@ def find_new_train_place(all_seats, old_all_seats0):
     return [new_ticket, all_text]
 
 
-async def sort_train_time(train_info):
-    name_travel = (headers_yandex.get("referer")[len("https://travel.yandex.ru/trains/"):].split("/")[0].upper())
+async def sort_train_time(train_info, headers):
+    name_travel = (headers.get("referer")[len("https://travel.yandex.ru/trains/"):].split("/")[0].upper())
     all_text = f'<b>🏡 {name_travel}</b> \n\n'
     if train_info:
         all_text_list = sorted(train_info, key=lambda x: datetime.strptime(x['date'],
@@ -98,54 +169,3 @@ async def sort_train_time(train_info):
     return all_text
 
 
-async def scraping_yandex():
-    try:
-        response = requests.get('https://travel.yandex.ru/api/trains/genericSearch',
-                                params=params_yandex, cookies=cookies_yandex, headers=headers_yandex).json()
-        all_trains = response.get('variants')
-        # with open("dir_get/data_file_yandex.json", "w", encoding='utf-8') as write_file:
-        #     json.dump(all_trains, write_file, indent=4, ensure_ascii=False)
-        train_info = []
-        new_ticket = False
-        for train_id in all_trains:
-            train = train_id['forward'][0]
-
-            train_number = train['train']['number']
-            time_departure = datetime.strptime(train['departure'], "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=3)
-            time_arrival = (datetime.strptime(train['arrival'], "%Y-%m-%dT%H:%M:%SZ")
-                            + timedelta(hours=3)).strftime("%H:%M:%S %d.%m.%Y")
-
-            if time_departure > datetime_start(18) and find_need_train_place(train['tariffs']['classes'], 12000, 2):
-                train_company = train['company']['title']
-                if not (await base_train.sql_read_train(train_number)):
-                    await base_train.sql_add_train(train_number, time_departure)
-
-                duration = train['duration'] / 60
-                duration_min = int(duration % 60)
-                duration_hour = int(duration // 60)
-
-                station_from = train['stationFrom']['title']
-                station_to = train['stationTo']['title']
-                seat_info = all_train_place_now(train['tariffs']['classes'])
-                seat_text = seat_info[0]
-
-                all_seats = seat_info[1]
-                result_find = find_new_train_place(all_seats, await base_train.sql_read_train(train_number))
-                new_ticket = result_find[0]
-                new_ticket_text = result_find[1]
-                await base_train.sql_update_train(train_number, all_seats)
-
-                train_info.append({"new_ticket_text": f'{new_ticket_text}',
-                                   "date": f'<b>🕗 {time_departure.strftime("%H:%M:%S %d.%m.%Y")}</b> \n',
-                                   "text": f'🚅 Поезд №{train_number} {train_company} \n'
-                                           f'{station_from} -> {station_to} ({duration_hour}ч {duration_min} мин) \n'
-                                           f'{time_arrival}\n'
-                                           f'<b>{seat_text}</b>\n'})
-            elif (await base_train.sql_read_train(train_number) and
-                  await base_train.sql_read_time_train(train_number) == time_departure):
-                await base_train.sql_delete_train(train_number)
-
-        return [new_ticket, await sort_train_time(train_info)]
-    except requests.exceptions.ConnectionError:
-        print('[!] Please check your connection!')
-        return [False, '[!] Please check your connection!']
