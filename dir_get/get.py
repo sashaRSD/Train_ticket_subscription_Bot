@@ -7,6 +7,8 @@ from dir_base import base_train
 import requests, json, asyncio
 
 
+params_city_in_travel = [data_Moscow_Voronezh28, data_Moscow_StOskol28, data_Voronezh_Adler1]
+
 # html.parser- встроенный - никаких дополнительных зависимостей не требуется
 # html5lib— самый снисходительный — лучше используйте его, если HTML не работает
 # lxml- быстрейший
@@ -21,7 +23,7 @@ async def scraping_yandex():
     response = {}
     try:
         all_travel = []
-        for city in [data_Voronezh_Adler1, data_Moscow_Voronezh28, data_Moscow_StOskol28, data_SPB_Moscow27]:
+        for city in params_city_in_travel:
             settings_train = city[0]
             cookies_ya = city[1]
             header_ya = city[2]
@@ -60,7 +62,7 @@ async def scraping_yandex():
                     result_find = find_new_train_place(all_seats, await base_train.sql_read_train(train_number, time_departure))
                     new_ticket = result_find[0]
                     new_ticket_text = result_find[1]
-                    await base_train.sql_update_train(train_number, all_seats)
+                    await base_train.sql_update_train(train_number, time_departure, all_seats)
 
                     train_info.append({"new_ticket_text": f'{new_ticket_text}',
                                        "date": f'<b>🕗 {time_departure.strftime("%H:%M:%S %d.%m.%Y")}</b> \n',
@@ -102,7 +104,7 @@ def find_need_train_place(train_class, price=0, need_seat=0, need_class=0):
 
 def all_train_place_now(seats):
     seat_text = ""
-    all_seats = [0, 0, 0, 0, 0, 0, 0, 0]
+    all_seats = [0, 0, 0, 0, 0, 0, 0]
     dict_class_name = {'sitting': 'Сидячие',
                        'platzkarte': 'Плацкарт',
                        'compartment': 'Купе',
@@ -111,18 +113,25 @@ def all_train_place_now(seats):
     dict_all_seats = {'sitting': 0,
                       'platzkarte': [1, 2],
                       'compartment': [3, 4],
-                      'suite': [5, 6],
-                      'soft': 7}
+                      'suite': 5,
+                      'soft': 6}
 
     if seats:
         for key_dict_i in dict_class_name.keys():
             if key_dict_i in seats:
-                if key_dict_i in ['sitting', 'soft']:
+                if key_dict_i == 'platzkarte':
                     seat_price = seats[f'{key_dict_i}']['price']['value']
                     seat_place = seats[f'{key_dict_i}']['seats']
-                    seat_text += f'  {dict_class_name.get(key_dict_i)} - {seat_place} от {seat_price}\n'
-                    all_seats[dict_all_seats.get(key_dict_i)] = seat_place
-                else:
+                    places_lower = seats[f'{key_dict_i}']['placesDetails']['lower']['quantity']
+                    places_upper = seats[f'{key_dict_i}']['placesDetails']['upper']['quantity']
+                    places_lower_side = seats[f'{key_dict_i}']['placesDetails']['lowerSide']['quantity']
+                    places_upper_side = seats[f'{key_dict_i}']['placesDetails']['upperSide']['quantity']
+                    seat_text += (f'  {dict_class_name.get(key_dict_i)} - {seat_place} '
+                                  f'({places_lower} + {places_lower_side}б. ниж/ '
+                                  f'{places_upper} + {places_upper_side}б. верх) от {seat_price}\n')
+                    all_seats[dict_all_seats.get(key_dict_i)[0]] = places_lower + places_lower_side
+                    all_seats[dict_all_seats.get(key_dict_i)[1]] = places_upper + places_upper_side
+                elif key_dict_i == 'compartment':
                     seat_price = seats[f'{key_dict_i}']['price']['value']
                     seat_place = seats[f'{key_dict_i}']['seats']
                     places_lower = seats[f'{key_dict_i}']['placesDetails']['lower']['quantity']
@@ -131,6 +140,11 @@ def all_train_place_now(seats):
                                   f'({places_lower} ниж/ {places_upper} верх) от {seat_price}\n')
                     all_seats[dict_all_seats.get(key_dict_i)[0]] = places_lower
                     all_seats[dict_all_seats.get(key_dict_i)[1]] = places_upper
+                else:
+                    seat_price = seats[f'{key_dict_i}']['price']['value']
+                    seat_place = seats[f'{key_dict_i}']['seats']
+                    seat_text += f'  {dict_class_name.get(key_dict_i)} - {seat_place} от {seat_price}\n'
+                    all_seats[dict_all_seats.get(key_dict_i)] = seat_place
     else:
         seat_text = f"   SOLD_OUT\n"
     return [seat_text, all_seats]
@@ -139,13 +153,12 @@ def all_train_place_now(seats):
 def find_new_train_place(all_seats, old_all_seats0):
     new_ticket = False
     all_text = ""
-    class_train_name = ['Сидячие', 'Плацкарт нижнее', 'Плацкарт верхнее', 'Купе нижнее', 'Купе верхне',
-                        'СВ нижнее', 'СВ верхнее', 'ЛЮКС']
+    class_train_name = ['Сидячие', 'Плацкарт нижнее', 'Плацкарт верхнее', 'Купе нижнее', 'Купе верхне', 'СВ', 'ЛЮКС']
 
     old_all_seats = list(old_all_seats0[0])
     old_all_seats.pop(0)
     old_all_seats.pop(0)
-    for i in range(0, 8):
+    for i in range(0, 7):
         if all_seats[i] > old_all_seats[i]:
             new_ticket = True
             all_text += f"<b>✅ Появились места - {class_train_name[i]} </b>\n"
