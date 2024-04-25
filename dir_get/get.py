@@ -17,7 +17,7 @@ def datetime_start(hour):
     return datetime0
 
 
-def find_train_place(train_class, price=0, need_seat=0, need_class=0):
+def find_need_train_place(train_class, price=0, need_seat=0, need_class=0):
     if not need_class:
         need_class = ['sitting', 'platzkarte', 'compartment', 'suite', 'soft']
     if not price:
@@ -30,7 +30,7 @@ def find_train_place(train_class, price=0, need_seat=0, need_class=0):
     return
 
 
-def all_train_place(seats):
+def all_train_place_now(seats):
     seat_text = ""
     all_seats = [0, 0, 0, 0, 0, 0, 0, 0]
     dict_class_name = {'sitting': 'Сидячие',
@@ -82,6 +82,22 @@ def find_new_train_place(all_seats, old_all_seats0):
     return [new_ticket, all_text]
 
 
+async def sort_train_time(train_info):
+    name_travel = (headers_yandex.get("referer")[len("https://travel.yandex.ru/trains/"):].split("/")[0].upper())
+    all_text = f'<b>🏡 {name_travel}</b> \n\n'
+    if train_info:
+        all_text_list = sorted(train_info, key=lambda x: datetime.strptime(x['date'],
+                                                                           "<b>🕗 %H:%M:%S %d.%m.%Y</b> \n"),
+                               reverse=False)
+
+        for all_text_list_i in all_text_list:
+            all_text += ''.join(f'{all_text_i}' for all_text_i in all_text_list_i.values())
+    else:
+        all_text += 'Поездов нет!\n'
+    all_text += 'Если нужна инфа, то вот → /get'
+    return all_text
+
+
 async def scraping_yandex():
     try:
         response = requests.get('https://travel.yandex.ru/api/trains/genericSearch',
@@ -99,7 +115,7 @@ async def scraping_yandex():
             time_arrival = (datetime.strptime(train['arrival'], "%Y-%m-%dT%H:%M:%SZ")
                             + timedelta(hours=3)).strftime("%H:%M:%S %d.%m.%Y")
 
-            if time_departure > datetime_start(18) and find_train_place(train['tariffs']['classes'], 12000, 2):
+            if time_departure > datetime_start(18) and find_need_train_place(train['tariffs']['classes'], 12000, 2):
                 train_company = train['company']['title']
                 if not (await base_train.sql_read_train(train_number)):
                     await base_train.sql_add_train(train_number, time_departure)
@@ -110,7 +126,7 @@ async def scraping_yandex():
 
                 station_from = train['stationFrom']['title']
                 station_to = train['stationTo']['title']
-                seat_info = all_train_place(train['tariffs']['classes'])
+                seat_info = all_train_place_now(train['tariffs']['classes'])
                 seat_text = seat_info[0]
 
                 all_seats = seat_info[1]
@@ -121,23 +137,15 @@ async def scraping_yandex():
 
                 train_info.append({"new_ticket_text": f'{new_ticket_text}',
                                    "date": f'<b>🕗 {time_departure.strftime("%H:%M:%S %d.%m.%Y")}</b> \n',
-                                   "text": f'🚂 Поезд №{train_number} {train_company} \n'
+                                   "text": f'🚅 Поезд №{train_number} {train_company} \n'
                                            f'{station_from} -> {station_to} ({duration_hour}ч {duration_min} мин) \n'
                                            f'{time_arrival}\n'
                                            f'<b>{seat_text}</b>\n'})
             elif (await base_train.sql_read_train(train_number) and
                   await base_train.sql_read_time_train(train_number) == time_departure):
                 await base_train.sql_delete_train(train_number)
-        all_text = ''
-        if train_info:
-            all_text_list = sorted(train_info, key=lambda x: datetime.strptime(x['date'],
-                                                            "<b>🕗 %H:%M:%S %d.%m.%Y</b> \n"), reverse=False)
-            for all_text_list_i in all_text_list:
-                all_text += ''.join(f'{all_text_i}' for all_text_i in all_text_list_i.values())
-        else:
-            all_text = 'Поездов нет!\n'
-        all_text += 'Если нужна инфа, то вот → /get'
-        return [new_ticket, all_text]
+
+        return [new_ticket, await sort_train_time(train_info)]
     except requests.exceptions.ConnectionError:
         print('[!] Please check your connection!')
         return [False, '[!] Please check your connection!']
