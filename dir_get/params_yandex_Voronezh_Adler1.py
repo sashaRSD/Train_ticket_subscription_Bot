@@ -71,4 +71,4 @@ params = {
     'mockImAuto': 'false',
 }
 
-data_Voronezh_Adler1 = [[18, 12000, 2], cookies, headers, params]
+data_Voronezh_Adler1 = [[0, 12000, 2], cookies, headers, params]

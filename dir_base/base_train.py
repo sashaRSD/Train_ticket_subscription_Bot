@@ -8,32 +8,25 @@ def sql_start():
     cur = base.cursor()
     if base:
         print('Data base connect OK!')
-    base.execute('CREATE TABLE IF NOT EXISTS data(train TEXT PRIMARY KEY,'
+    base.execute('CREATE TABLE IF NOT EXISTS data('
+                 'time_departure DATETIME PRIMARY KEY, train TEXT,'
                  'sitting INT, '
                  'platzkarte_low INT, platzkarte_up INT,'
                  'compartment_low INT, compartment_up INT,'
                  'suite_low INT, suite_up INT,'
-                 'soft INT,'
-                 'time_departure DATETIME)')
+                 'soft INT)')
     base.commit()
 
 
 async def sql_add_train(train_number, time_departure):
     cur.execute('INSERT INTO data VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                (train_number, 0, 0, 0, 0, 0, 0, 0, 0, time_departure))
+                (time_departure, train_number, 0, 0, 0, 0, 0, 0, 0, 0))
     base.commit()
 
 
-async def sql_read_train(train_number):
-    return cur.execute('SELECT * FROM data WHERE train == ?', (train_number,)).fetchall()
-
-
-async def sql_read_time_train(train_number):
-    return cur.execute('SELECT `time_departure` FROM data WHERE train == ?', (train_number,)).fetchall()
-
-
-async def sql_read_all_train():
-    return cur.execute('SELECT * FROM data').fetchall()
+async def sql_read_train(train_number, time_departure):
+    return cur.execute('SELECT * FROM data WHERE train == ? AND time_departure = ?',
+                       (train_number, time_departure)).fetchall()
 
 
 async def sql_update_train(train_number, all_seats):
@@ -47,8 +40,8 @@ async def sql_update_train(train_number, all_seats):
     base.commit()
 
 
-async def sql_delete_train(train_number):
-    cur.execute('DELETE FROM data WHERE train == ?', (train_number,))
+async def sql_delete_train(train_number, time_departure):
+    cur.execute('DELETE FROM data WHERE train == ? AND time_departure = ?', (train_number,time_departure))
     base.commit()
 
 

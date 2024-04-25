@@ -44,7 +44,7 @@ async def scraping_yandex():
                 if (time_departure > datetime_start(settings_train[0], params_ya) and
                         find_need_train_place(train['tariffs']['classes'], settings_train[1], settings_train[2])):
                     train_company = train['company']['title']
-                    if not (await base_train.sql_read_train(train_number)):
+                    if not (await base_train.sql_read_train(train_number, time_departure)):
                         await base_train.sql_add_train(train_number, time_departure)
 
                     duration = train['duration'] / 60
@@ -57,7 +57,7 @@ async def scraping_yandex():
                     seat_text = seat_info[0]
 
                     all_seats = seat_info[1]
-                    result_find = find_new_train_place(all_seats, await base_train.sql_read_train(train_number))
+                    result_find = find_new_train_place(all_seats, await base_train.sql_read_train(train_number, time_departure))
                     new_ticket = result_find[0]
                     new_ticket_text = result_find[1]
                     await base_train.sql_update_train(train_number, all_seats)
@@ -68,19 +68,18 @@ async def scraping_yandex():
                                                f'{station_from} -> {station_to} ({duration_hour}ч {duration_min} мин) \n'
                                                f'{time_arrival}\n'
                                                f'<b>{seat_text}</b>\n'})
-                elif (await base_train.sql_read_train(train_number) and
-                      await base_train.sql_read_time_train(train_number) == time_departure):
-                    await base_train.sql_delete_train(train_number)
+                elif await base_train.sql_read_train(train_number, time_departure):
+                    await base_train.sql_delete_train(train_number, time_departure)
 
             all_travel.append([new_ticket, await sort_train_time(train_info, header_ya)])
             await asyncio.sleep(3)
         return all_travel
     except requests.exceptions.ConnectionError:
         print('[!] Please check your connection!')
-        return [[False, '[!] Please check your connection!']]
+        return [[True, '[!] Please check your connection!']]
     except TypeError:
         print('[!] Please check captcha!')
-        return [[False, f'[!] Please check captcha!\n{response.get("captcha").get("captcha-page")}']]
+        return [[True, f'[!] Please check captcha!\n{response.get("captcha").get("captcha-page")}']]
 
 
 def datetime_start(hour, params_yandex):
@@ -145,7 +144,7 @@ def find_new_train_place(all_seats, old_all_seats0):
 
     old_all_seats = list(old_all_seats0[0])
     old_all_seats.pop(0)
-    old_all_seats.pop()
+    old_all_seats.pop(0)
     for i in range(0, 8):
         if all_seats[i] > old_all_seats[i]:
             new_ticket = True
