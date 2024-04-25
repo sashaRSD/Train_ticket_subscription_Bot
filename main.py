@@ -4,9 +4,9 @@ from dir_base import base_train
 import aioschedule, asyncio
 
 
-
 async def scheduler():
     aioschedule.every().minute.do(client.timer_fun)
+    aioschedule.every().day.at('00:00').do(base_train.sql_delete_old())
     print('Timer run!')
     while True:
         await aioschedule.run_pending()
@@ -16,7 +16,6 @@ async def scheduler():
 async def on_startup():
     asyncio.create_task(scheduler())
     base_train.sql_start()
-    await base_train.sql_delete_all()
     preview_text = Figlet(font='slant')
     print(preview_text.renderText("TICKET SUB BOT"))
 
